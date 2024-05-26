@@ -19,17 +19,13 @@ class IntercomNotifier:
         input_device_index: int,
         monitor_rate: int,
         scan_duration: float,
-        chime_frequencies: list[int],
-        buffer_ylim: tuple[float, float],
-        spectrum_xlim: tuple[float, float],
-        spectrum_ylim: tuple[float, float],
     ) -> None:
         self.stream_rate = stream_rate
         self.stream_buffer_size = stream_rate // monitor_rate
         self.scan_duration = scan_duration
-        self.chime_frequencies = chime_frequencies
-
-        self.lock = threading.Lock()
+        self.fft_samples_num = (
+            1 << math.ceil(self.scan_duration * self.stream_rate).bit_length()
+        )
 
         self.audio = pyaudio.PyAudio()
         self.stream = self.audio.open(
@@ -42,7 +38,7 @@ class IntercomNotifier:
         )
 
         self.buffer: np.ndarray = np.zeros(
-            1 << math.ceil(scan_duration * stream_rate).bit_length(), dtype=np.int16
+            math.ceil(self.scan_duration * self.stream_rate), dtype=np.int16
         )
         self.frequencies: np.ndarray = np.array([])
         self.spectrum: np.ndarray = np.array([])
@@ -53,14 +49,11 @@ class IntercomNotifier:
         self.fig, (self.buffer_ax, self.spectrum_ax) = plt.subplots(1, 2)
 
         (self.buffer_line,) = self.buffer_ax.plot(
-            np.linspace(-scan_duration, 0, self.buffer.shape[0]), self.buffer
+            np.linspace(-self.scan_duration, 0, self.buffer.shape[0]), self.buffer
         )
-        self.buffer_ax.set_ylim(buffer_ylim)
 
         (self.spectrum_line,) = self.spectrum_ax.plot([])
         (self.peak_line,) = self.spectrum_ax.plot([], [], "x")
-        self.spectrum_ax.set_xlim(spectrum_xlim)
-        self.spectrum_ax.set_ylim(spectrum_ylim)
 
         def on_key_press(event: matplotlib.backend_bases.KeyEvent) -> None:
             if event.key == "q":
@@ -68,9 +61,38 @@ class IntercomNotifier:
 
         self.fig.canvas.mpl_connect("key_press_event", on_key_press)
 
-        self.terminated = False
+        self.min_peak_height = None
+        self.min_peak_distance = None
+        self.chime_features = []
+        self.chime_frequency_tolerance = 0
+
+        self.lock = threading.Lock()
+
         self.chime_detected = False
-        self.last_detected_time = 0
+        self.terminated = False
+
+    def set_visualize_param(
+        self,
+        buffer_ylim: tuple[float, float],
+        spectrum_xlim: tuple[float, float],
+        spectrum_ylim: tuple[float, float],
+    ) -> None:
+        self.buffer_ax.set_ylim(buffer_ylim)
+        self.spectrum_ax.set_xlim(spectrum_xlim)
+        self.spectrum_ax.set_ylim(spectrum_ylim)
+
+    def set_criteria(
+        self,
+        min_peak_height: float,
+        min_peak_distance: float,
+        chime_features: list[tuple[float, float]],
+        chime_frequency_tolerance: float,
+    ) -> None:
+        with self.lock:
+            self.min_peak_height = min_peak_height
+            self.min_peak_distance = min_peak_distance
+            self.chime_features = chime_features
+            self.chime_frequency_tolerance = chime_frequency_tolerance
 
     def start(self) -> None:
         self.monitor_thread = threading.Thread(target=self.monitor, daemon=True)
@@ -94,11 +116,18 @@ class IntercomNotifier:
             buffer = np.roll(self.buffer, -data.shape[0])
             buffer[-data.shape[0] :] = data
 
-            spectrum = np.abs(np.fft.fft(buffer))
+            spectrum = np.abs(np.fft.fft(buffer, self.fft_samples_num))
             frequencies = np.fft.fftfreq(spectrum.shape[0], d=1 / self.stream_rate)
+            with self.lock:
+                min_peak_height = self.min_peak_height
+                min_peak_distance = self.min_peak_distance
+                chime_features = self.chime_features
+                chime_frequency_tolerance = self.chime_frequency_tolerance
 
             peaks: np.ndarray
-            peaks, _ = scipy.signal.find_peaks(spectrum, height=2e5, distance=800)
+            peaks, _ = scipy.signal.find_peaks(
+                spectrum, height=min_peak_height, distance=min_peak_distance
+            )
 
             with self.lock:
                 self.buffer = buffer
@@ -107,16 +136,17 @@ class IntercomNotifier:
                 self.peaks = peaks
 
             if peaks.size > 0:
-                has_all_chime_frequencies = all(
-                    np.any(np.isclose(frequencies[peaks], frequency, atol=50))
-                    for frequency in self.chime_frequencies
+                self.chime_detected = all(
+                    np.any(
+                        np.isclose(
+                            frequencies[peaks], f, atol=chime_frequency_tolerance
+                        )
+                        & (spectrum[peaks] >= s)
+                    )
+                    for f, s in chime_features
                 )
-
-                if has_all_chime_frequencies:
-                    self.chime_detected = True
-                    if time.time() - self.last_detected_time > self.scan_duration:
-                        print("Chime detected")
-                        self.last_detected_time = time.time()
+                print(f"Peaks: {frequencies[peaks]}")
+                print("Detected" if self.chime_detected else "Not detected")
 
     def visualize(self) -> None:
         with self.lock:
@@ -130,6 +160,8 @@ class IntercomNotifier:
 
         if peaks.size > 0:
             self.peak_line.set_data(frequencies[peaks], spectrum[peaks])
+        else:
+            self.peak_line.set_data([], [])
 
         try:
             plt.pause(0.01)
