@@ -118,6 +118,9 @@ class IntercomNotifier:
 
             spectrum = np.abs(np.fft.fft(buffer, self.fft_samples_num))
             frequencies = np.fft.fftfreq(spectrum.shape[0], d=1 / self.stream_rate)
+            spectrum = spectrum[1 : spectrum.shape[0] // 2]
+            frequencies = frequencies[1 : frequencies.shape[0] // 2]
+
             with self.lock:
                 min_peak_height = self.min_peak_height
                 min_peak_distance = self.min_peak_distance
