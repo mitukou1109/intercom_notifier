@@ -6,6 +6,7 @@
 #   features: []
 #   all-features: false
 #   with-sources: false
+#   generate-hashes: false
 
 -e file:.
 contourpy==1.2.1
@@ -33,9 +34,20 @@ pydub==0.25.1
     # via intercom-notifier
 pyparsing==3.1.2
     # via matplotlib
+pyside6==6.7.1
+    # via intercom-notifier
+pyside6-addons==6.7.1
+    # via pyside6
+pyside6-essentials==6.7.1
+    # via pyside6
+    # via pyside6-addons
 python-dateutil==2.9.0.post0
     # via matplotlib
 scipy==1.13.0
     # via intercom-notifier
+shiboken6==6.7.1
+    # via pyside6
+    # via pyside6-addons
+    # via pyside6-essentials
 six==1.16.0
     # via python-dateutil
