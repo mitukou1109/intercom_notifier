@@ -28,6 +28,6 @@ intercom_notifier.start()
 
 while not intercom_notifier.is_terminated():
     try:
-        intercom_notifier.visualize()
+        intercom_notifier.spin_once()
     except KeyboardInterrupt:
         intercom_notifier.terminate()

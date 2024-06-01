@@ -7,6 +7,7 @@ import matplotlib.backend_bases
 import matplotlib.pyplot as plt
 import numpy as np
 import pyaudio
+import requests
 import scipy.signal
 
 
@@ -61,14 +62,18 @@ class IntercomNotifier:
 
         self.fig.canvas.mpl_connect("key_press_event", on_key_press)
 
+        with open("line_notify_token.txt") as f:
+            self.line_notify_token = f.read().strip()
+
         self.min_peak_height = None
         self.min_peak_distance = None
         self.chime_features = []
         self.chime_frequency_tolerance = 0
 
-        self.lock = threading.Lock()
-
         self.chime_detected = False
+        self.last_notify_time = 0
+
+        self.lock = threading.Lock()
         self.terminated = False
 
     def set_visualize_param(
@@ -152,7 +157,20 @@ class IntercomNotifier:
                 print(f"Peaks: {frequencies[peaks]}")
                 print("Detected" if self.chime_detected else "Not detected")
 
-    def visualize(self) -> None:
+    def spin_once(self) -> None:
+        with self.lock:
+            chime_detected = self.chime_detected
+
+        if chime_detected:
+            current_time = time.time()
+            if current_time - self.last_notify_time > 10:
+                requests.post(
+                    "https://notify-api.line.me/api/notify",
+                    headers={"Authorization": f"Bearer {self.line_notify_token}"},
+                    params={"message": "鳴ったかも"},
+                )
+                self.last_notify_time = current_time
+
         with self.lock:
             buffer = self.buffer
             frequencies = self.frequencies
