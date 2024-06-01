@@ -111,7 +111,8 @@ class IntercomNotifier:
     def monitor(self) -> None:
         while not self.terminated:
             data = np.frombuffer(
-                self.stream.read(self.stream_buffer_size), dtype=np.int16
+                self.stream.read(self.stream_buffer_size, exception_on_overflow=False),
+                dtype=np.int16,
             )
             buffer = np.roll(self.buffer, -data.shape[0])
             buffer[-data.shape[0] :] = data
