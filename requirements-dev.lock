@@ -9,12 +9,18 @@
 #   generate-hashes: false
 
 -e file:.
+certifi==2024.2.2
+    # via requests
+charset-normalizer==3.3.2
+    # via requests
 contourpy==1.2.1
     # via matplotlib
 cycler==0.12.1
     # via matplotlib
 fonttools==4.51.0
     # via matplotlib
+idna==3.7
+    # via requests
 kiwisolver==1.4.5
     # via matplotlib
 matplotlib==3.9.0
@@ -43,6 +49,8 @@ pyside6-essentials==6.7.1
     # via pyside6-addons
 python-dateutil==2.9.0.post0
     # via matplotlib
+requests==2.32.3
+    # via intercom-notifier
 scipy==1.13.0
     # via intercom-notifier
 shiboken6==6.7.1
@@ -51,3 +59,5 @@ shiboken6==6.7.1
     # via pyside6-essentials
 six==1.16.0
     # via python-dateutil
+urllib3==2.2.1
+    # via requests
