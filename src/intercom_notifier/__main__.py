@@ -18,9 +18,9 @@ intercom_notifier.set_visualize_param(
 )
 
 intercom_notifier.set_criteria(
-    min_peak_height=0.25e6,
-    min_peak_distance=100,
-    chime_features=[(656.1, 0.25e6), (843.8, 0.25e6)],
+    min_peak_height=0.2e6,
+    min_peak_distance=500,
+    chime_features=[(656.1, 0.4e6), (843.8, 0.2e6)],
     chime_frequency_tolerance=10,
 )
 
